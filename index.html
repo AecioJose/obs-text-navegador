@@ -199,7 +199,7 @@
                 chatState[username].forEach(item => {
                     const p = document.createElement('p');
                     let text = `${item.quantity}x ${item.code}`;
-                    if (item.note) text += ` /${item.note}`;
+                    if (item.note) text += ` ${item.note}`;
                     p.textContent = text;
                     detailsDiv.appendChild(p);
                 });
