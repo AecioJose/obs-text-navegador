@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat vendas</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <link rel="icon" href="./icon.png" sizes="150x150" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <style>
+        /* Mantenha seu CSS original aqui */
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: #212121;
+            color: #f0f0f0;
+            margin: 0;
+            padding-bottom: 80px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .InitialMessage {
+            font-size: 0.8rem;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            flex-direction: column;
+            gap: 15px;
+
+            padding: 30px 20px;
+        }
+
+        .InitialMessage p {
+            margin: 0;
+            padding: 0;
+            text-wrap: pretty;
+            color: #e0e0e0;
+        }
+
+        .IniTitle {
+            font-size: 1rem;
+            font-weight: bolder;
+            align-self: center;
+            margin-bottom: 5px;
+        }
+
+        .dontBreak {
+            text-wrap: nowrap;
+            font-weight: bolder;
+            color: #fff;
+        }
+
+        #chat-container {
+            width: 90%;
+            max-width: 500px;
+            margin-top: 20px;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            padding: 10px;
+            border-radius: 10px;
+        }
+
+        .message-group {
+            background-color: #2c2c2c;
+            padding: 12px 18px;
+            border-radius: 20px;
+            margin-bottom: 10px;
+            word-wrap: break-word;
+        }
+
+        .message-group .highlight {
+            font-weight: bold;
+            color: #d1d1d1;
+        }
+
+        .productsQnt {
+            font-size: 0.7rem;
+            color: #c1c1c1;
+        }
+
+        .message-group .details {
+            margin-left: 15px;
+            font-size: 0.9em;
+            color: #b0b0b0;
+            line-height: 1.5;
+        }
+
+        .input-area {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            padding: 15px;
+            display: flex;
+            justify-content: center;
+            box-sizing: border-box;
+        }
+
+        .input-group {
+            position: relative;
+            width: 90%;
+            max-width: 500px;
+        }
+
+        .message-input {
+            width: 100%;
+            padding: 20px 60px 20px 20px;
+            border: 0.5px solid #ff00000d;
+            border-radius: 30px;
+            font-size: 16px;
+            background-color: #303030;
+            color: #e0e0e0;
+            box-sizing: border-box;
+            box-shadow: 1px 5px 10px 1px #0000003b;
+        }
+
+        .message-input:focus {
+            outline: none;
+        }
+
+        .send-button {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            background-color: transparent;
+            border: none;
+            cursor: pointer;
+            color: #888;
+            font-size: 20px;
+            transition: color 0.3s;
+        }
+
+        .send-button:hover {
+            color: #f0f0f0;
+        }
+    </style>
+</head>
+<body>
+    <div class="InitialMessage">
+        <p class="IniTitle">Instruções de uso</p>
+        <p>Adicionar compra digite @fulano + o código assim: <span class="dontBreak">@fulano 9999</span></p>
+        <p>Adicionar 2, 3, ou mais basta colocar 2x, 3x antes do código assim: <span class="dontBreak">@fulano 2x 9999</span></p>
+        <p>Para adicionar um comentário, basta digitar /comentario que você quer após o códgio assim: <span class="dontBreak">@fulano 9999 /na cor azul</span></p>
+        <p>Para remover basta adicionar um "-" antes do código assim: <span class="dontBreak">@fulano - 9999</span></p>
+        <p>Para remover mais de 1, basta colocar -2x, -3x antes do código assim: <span class="dontBreak">@fulano -2x 9999</span></p>
+        <p>Para salvar o conteudo em PDF basta digitar <span class="dontBreak">/save</span></p>
+        <p>Para resetar e limpar tudo basta digitar <span class="dontBreak">/reset</span></p>
+    </div>
+
+    <div id="chat-container">
+    </div>
+    
+    <div class="input-area">
+        <div class="input-group">
+            <input type="text" id="message-input" class="message-input" placeholder="Digite sua mensagem...">
+            <button id="send-button" class="send-button">
+                <i class="fas fa-paper-plane"></i>
+            </button>
+        </div>
+    </div>
+
+    <script type="module">
+        import { chatRef, onValue, set, get } from './firebase-init.js';
+
+        const sendButton = document.getElementById('send-button');
+        const messageInput = document.getElementById('message-input');
+        const chatContainer = document.getElementById('chat-container');
+
+        // render Firebase data
+        const renderChat = (data) => {
+            chatContainer.innerHTML = '';
+            const chatState = data || {};
+            const sortedUsernames = Object.keys(chatState).sort();
+
+            sortedUsernames.forEach(username => {
+                const groupDiv = document.createElement('div');
+                groupDiv.classList.add('message-group');
+                
+                const totalQuantity = chatState[username].reduce((sum, item) => sum + item.quantity, 0);
+                const highlightSpan = document.createElement('span');
+                highlightSpan.classList.add('highlight');
+                highlightSpan.textContent = `@${username}`;
+                groupDiv.appendChild(highlightSpan);
+
+                const productsQnt = document.createElement('span');
+                productsQnt.classList.add('productsQnt');
+                productsQnt.textContent = `ﾠ${totalQuantity} produto${totalQuantity > 1 ? 's' : ''}`;
+                groupDiv.appendChild(productsQnt);
+
+                const detailsDiv = document.createElement('div');
+                detailsDiv.classList.add('details');
+                
+                chatState[username].forEach(item => {
+                    const p = document.createElement('p');
+                    let text = `${item.quantity}x ${item.code}`;
+                    if (item.note) text += ` /${item.note}`;
+                    p.textContent = text;
+                    detailsDiv.appendChild(p);
+                });
+
+                groupDiv.appendChild(detailsDiv);
+                chatContainer.appendChild(groupDiv);
+            });
+
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        };
+
+        // synchronize Firebase localstate
+        onValue(chatRef, (snapshot) => {
+            const data = snapshot.val();
+            renderChat(data);
+        });
+
+        const saveToPdf = () => {
+            const element = document.getElementById('chat-container');
+            const options = {
+                margin: 10,
+                filename: `relatorio-chat-${new Date().toLocaleDateString('pt-BR')}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2 },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+            html2pdf().set(options).from(element).save();
+        };
+
+        // Send message Firebase
+        const processMessage = async () => {
+            const messageText = messageInput.value.trim();
+            if (messageText === '') return;
+
+            const mentionRegex = /^@?([^\s]+)(?:\s+(\d+)\s*[xX])?\s+(\d+)(?:\s*\/(.+))?$/;
+            const removeRegex = /^@?([^\s]+)\s*-\s*(?:(\d+)\s*[xX]\s*)?(\d+)(?:\s*\/(.+))?$/;
+            const commandRegex = /^\/(save|reset)$/i;
+
+            const mentionMatch = messageText.match(mentionRegex);
+            const removeMatch = messageText.match(removeRegex);
+            const commandMatch = messageText.match(commandRegex);
+
+            
+            const snapshot = await get(chatRef);
+            const chatState = snapshot.val() || {};
+
+            if (mentionMatch) {
+                const username = mentionMatch[1];
+                const quantity = mentionMatch[2] ? parseInt(mentionMatch[2], 10) : 1;
+                const code = mentionMatch[3];
+                const note = mentionMatch[4] ? mentionMatch[4].trim() : '';
+
+                if (!chatState[username]) chatState[username] = [];
+                const existing = chatState[username].find(item => item.code === code && item.note === note);
+                
+                if (existing) {
+                    existing.quantity += quantity;
+                } else {
+                    chatState[username].push({ quantity, code, note });
+                }
+
+                await set(chatRef, chatState); 
+            } else if (removeMatch) {
+                const username = removeMatch[1];
+                const quantity = removeMatch[2] ? parseInt(removeMatch[2], 10) : 1;
+                const code = removeMatch[3];
+                const note = removeMatch[4] ? removeMatch[4].trim() : '';
+                
+                if (!chatState[username]) {
+                    alert(`Não foi possível remover: o usuário "${username}" não existe.`);
+                } else {
+                    const existingIndex = chatState[username].findIndex(item => item.code === code && item.note === note);
+                    if (existingIndex === -1) {
+                        alert(`Não foi possível remover: o produto "${code}" do usuário "${username}" não existe.`);
+                    } else {
+                        const existing = chatState[username][existingIndex];
+                        existing.quantity -= quantity;
+                        
+                        if (existing.quantity <= 0) {
+                            chatState[username].splice(existingIndex, 1);
+                        }
+                        
+                        if (chatState[username].length === 0) {
+                            delete chatState[username];
+                        }
+                        await set(chatRef, chatState);
+                    }
+                }
+            } else if (commandMatch) {
+                const command = commandMatch[1].toLowerCase();
+                if (command === 'save') {
+                    saveToPdf();
+                } else if (command === 'reset') {
+                    if (confirm('Deseja realmente apagar tudo?')) {
+                        await set(chatRef, null); // Apaga todos os dados no Firebase!!
+                    }
+                }
+            } else {
+                alert('Formato inválido. Exemplos: "@usuario 2x 387", "@usuario -2x 387", "@usuario 348 /texto", "/comando".');
+            }
+
+            messageInput.value = '';
+        };
+
+        sendButton.addEventListener('click', processMessage);
+        messageInput.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+                processMessage();
+            }
+        });
+    </script>
+</body>
+</html>
